@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014 P.G. Demidov Yaroslavl State University
+ * Copyright (c) 2013 P.G. Demidov Yaroslavl State University
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -15,7 +15,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- * Author: Dmitry Chalyy <chaly@uniyar.ac.ru>
+ * Author: Dmitry Ju. Chalyy (chaly@uniyar.ac.ru)
  */
 
 #include <stdint.h>
@@ -86,7 +86,7 @@ namespace ns3 {
     {
         NS_LOG_FUNCTION_NOARGS ();
         m_tsstart = Simulator::Now();
-        m_tsgranularity = MilliSeconds(50);
+        m_tsgranularity = MilliSeconds(5);
         m_rqQueue.clear();
     }
     
@@ -449,6 +449,8 @@ namespace ns3 {
         if (th.GetPacketType()==REQUEST) {
             th.SetSacks(m_RcvdRequests);
         }
+        th.SetTSEcr(m_tsecr);
+        th.SetTSVal(GetCurTSVal());
         p->AddHeader(th);
         // Update transport continuation if data is sent
         if (IsManualIpTos ())

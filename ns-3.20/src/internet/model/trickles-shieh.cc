@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014 P.G. Demidov Yaroslavl State University
+ * Copyright (c) 2013 P.G. Demidov Yaroslavl State University
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -15,7 +15,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- * Author: Dmitry Chalyy <chaly@uniyar.ac.ru>
+ * Author: Dmitry Ju. Chalyy (chaly@uniyar.ac.ru)
  */
 
 #include <stdint.h>
@@ -48,7 +48,7 @@
 NS_LOG_COMPONENT_DEFINE ("TricklesShieh");
 
 static uint16_t ShiehInitialCwnd = 2;
-static uint16_t ShiehInitialSsthresh = 6;
+static uint16_t ShiehInitialSsthresh = 66;
 static uint16_t ShiehDupTrickles = 3;
 
 namespace ns3 {
@@ -81,7 +81,7 @@ std::clog << "\n";
                       MakeUintegerChecker<uint32_t> ())
         .AddAttribute("StartSsthresh",
                       "TricklesShieh start ssthresh value",
-                      UintegerValue(6),
+                      UintegerValue(0xffff),
                       MakeUintegerAccessor(&TricklesShieh::GetStartSsthresh,
                                            &TricklesShieh::SetStartSsthresh),
                       MakeUintegerChecker<uint32_t>())
@@ -106,7 +106,7 @@ std::clog << "\n";
     }
     
     void TricklesShieh::NewRequest() {
-        NS_LOG_FUNCTION (this);
+        // NS_LOG_FUNCTION (this);
         if (!m_started) {
             m_tcpBase = SequenceNumber32(0);
             m_cwnd = ShiehInitialCwnd;
@@ -151,6 +151,7 @@ std::clog << "\n";
         
 //        LOG_TRICKLES_HEADER(th); std::clog << "\n";
 //        MY_LOG_TRICKLES_PACKET(packet);
+        m_rtt->ResetMultiplier();
 
         if (packet->RemoveHeader(tsh)) {
             TricklesSocketBase::ProcessTricklesPacket(packet, th);
@@ -167,11 +168,18 @@ std::clog << "\n";
         // он же отлавливает дубликаты, соответственно если пакет до сюда добрался, то он не был дубликатом/некорректным пакетом
         NS_LOG_FUNCTION (this);
         
+        // Нормальная отправка пакета
+        if (th.IsRecovery() == NO_RECOVERY) {
+            m_tcpBase = trh.GetTcpBase();
+            m_cwnd = trh.GetStartCwnd();
+            m_ssthresh = trh.GetSsthresh();
+        }
+        th.SetRequestSize(m_segSize);
         if (m_RcvdRequests.numBlocks()>1) {
             // Срабатывание повторной передачи
             packet->AddHeader(trh);
             packet->AddHeader(th);
-            std::clog << "Fast retransmit triggered by: "; MY_LOG_TRICKLES_PACKET(packet); std::clog << "\n";
+            //std::clog << "Fast retransmit triggered by: "; MY_LOG_TRICKLES_PACKET(packet); std::clog << "\n";
             
             DelayPacket(packet);
             SackConstIterator i = m_RcvdRequests.firstBlock();
@@ -185,7 +193,6 @@ std::clog << "\n";
                 SendDelayedPackets();
             }
         } else {
-            // Нормальная отправка пакета
             packet->AddHeader(trh);
             packet->AddHeader(th);
             DelayPacket(packet);
@@ -199,12 +206,12 @@ std::clog << "\n";
         NS_ASSERT(packet->PeekPacketTag(tag));
         TricklesSack s = th.GetSacks();
         SequenceNumber32 parent_trickle = th.GetTrickleNumber();
+        SackConstIterator i = s.firstBlock();
         
         if (s.numBlocks()>1) {
             // Обнаружены потери
+            SequenceNumber32 firstLoss = i->second;
             NS_LOG_DEBUG("Losses!");
-            SackConstIterator i = s.firstBlock();
-            SequenceNumber32 firstLoss = (th.GetFirstLoss()<=trh.GetTcpBase())?(i->second):(th.GetFirstLoss());
             if (th.IsRecovery() == NO_RECOVERY) {
                 // Быстрая ретрансляция
                 i++;
@@ -259,7 +266,7 @@ std::clog << "\n";
                     th.SetParentNumber(parent_trickle);
                     th.SetTrickleNumber(f);
                     th.SetFirstLoss(firstLoss);
-                    th.SetRequestSize(0);
+                    //th.SetRequestSize(1000);
                     trh.SetStartCwnd(ShiehInitialCwnd);
                     trh.SetSsthresh(tcpCwnd(trh.GetTcpBase(), trh.GetStartCwnd(), trh.GetSsthresh(), firstLoss-1)/2);
                     Ptr<Packet> p = Create<Packet>();
@@ -271,8 +278,7 @@ std::clog << "\n";
                 }
             }
         } else {
-            // Нет потерь
-            if ((th.IsRecovery() == NO_RECOVERY) || (th.IsRecovery() == RTO_TIMEOUT)) {
+            if (th.IsRecovery() == NO_RECOVERY) {
                 // Нормальное функционирование/выход из режима восстановления по тайм-ауту
                 uint16_t curcwnd = tcpCwnd(trh.GetTcpBase(), trh.GetStartCwnd(), trh.GetSsthresh(), th.GetTrickleNumber());
                 uint16_t prevcwnd = tcpCwnd(trh.GetTcpBase(), trh.GetStartCwnd(), trh.GetSsthresh(), th.GetTrickleNumber()-1);
@@ -303,6 +309,17 @@ std::clog << "\n";
                         QueueToServerApp(p);
                     }
                 }
+            }
+            // Нет потерь
+            if (th.IsRecovery() == RTO_TIMEOUT) {
+//                SequenceNumber32 firstLoss = th.GetFirstLoss();
+                th.SetRecovery(NO_RECOVERY);
+                trh.SetTcpBase(i->second-1);
+                trh.SetStartCwnd(ShiehInitialCwnd);
+                trh.SetSsthresh(trh.GetSsthresh()/2);
+                packet->AddHeader(trh);
+                packet->AddHeader(th);
+                QueueToServerApp(packet);
             }
             if (th.IsRecovery() == FAST_RETRANSMIT) {
                 SequenceNumber32 firstLoss = th.GetFirstLoss();
@@ -357,15 +374,21 @@ std::clog << "\n";
     
     
     void TricklesShieh::TrySendDelayed() {
-        NS_LOG_FUNCTION (this);
         if (m_RcvdRequests.numBlocks()==1) {
+            NS_LOG_FUNCTION (this);
             while ((m_delayed.size()>0) && (m_reqDataSize>=m_segSize)) {
                 Ptr<Packet> p = m_delayed.front();
                 m_delayed.pop_front();
-//                MY_LOG_TRICKLES_PACKET(p);
-                m_retxEvent.Cancel();
-                m_retxEvent = Simulator::Schedule(m_rtt->RetransmitTimeout(), &TricklesShieh::ReTxTimeout, this);
-                TricklesSocketBase::Send(p,0);
+                TricklesHeader h;
+                if (p->PeekHeader(h)) {
+                    if (h.IsRecovery() == NO_RECOVERY) {
+                        //                MY_LOG_TRICKLES_PACKET(p);
+                        m_retxEvent.Cancel();
+                        m_rtt->ResetMultiplier();
+                        m_retxEvent = Simulator::Schedule(m_rtt->RetransmitTimeout(), &TricklesShieh::ReTxTimeout, this);
+                        TricklesSocketBase::Send(p,0);
+                    }
+                }
             }
         }
     }
@@ -377,6 +400,7 @@ std::clog << "\n";
             m_delayed.pop_front();
             //MY_LOG_TRICKLES_PACKET(p);
             m_retxEvent.Cancel();
+            m_rtt->ResetMultiplier();
             m_retxEvent = Simulator::Schedule(m_rtt->RetransmitTimeout(), &TricklesShieh::ReTxTimeout, this);
             TricklesSocketBase::Send(p, 0);
         }
@@ -404,9 +428,9 @@ std::clog << "\n";
             Ptr<Packet> p = Create<Packet> ();
             p->AddHeader(tsh);
             p->AddHeader(trh);
-            TricklesSocketBase::Send(p, 0);
             m_retxEvent.Cancel();
             m_retxEvent = Simulator::Schedule(m_rtt->RetransmitTimeout(), &TricklesShieh::ReTxTimeout, this);
+            TricklesSocketBase::Send(p, 0);
         }
         
     }

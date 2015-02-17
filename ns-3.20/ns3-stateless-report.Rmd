@@ -1,0 +1,129 @@
+---
+title: "Simple experiments with a stateless protocol in ns-3"
+output: html_document
+---
+
+# Preliminaries
+
+It is assumed that this file is placed in **ns-3.20/** directory. You can compile this file in [RStudio](http://www.rstudio.com) using option **Knit HTML**.
+
+This file sources files from [ns3r git repository](https://github.com/dchaly/ns3r.git).
+It is assumed that repository is downloaded under **./../ns3r/** directory.
+
+```{r}
+library(ggplot2)
+setwd("./../ns3r")
+source('trace-parser.R')
+source('trace-analysis.R')
+setwd("./../ns-3.20")
+expfilename = "trickles-p2p"
+srcfilename = paste0("scratch/", expfilename, ".cc")
+```
+
+This file uses a model which is implemented in file ```r srcfilename``` placed in **ns-3.20/scratch/**. The source code of the file is also available at [Appendix A](# Appendix A. Source code of the experiment) of this document.
+
+# Network model
+
+The ```r srcfilename``` contains a model of the following network:
+
+# Experiments
+
+Test experiment:
+
+```{r}
+args <- paste0("--run \"scratch/", expfilename," --bandwidth=1Mbps --delay=200ms --queue=10 --protocol=reno --trace=a.tr\"")
+res <- system2("./waf", args, stdout=TRUE)
+```
+
+```r args```
+
+```r res```
+
+```{r}
+traceExp <- function(expfilename) {
+  minbandwidth = 1.0
+  maxbandwidth = 3.0
+  bandwidthstep = 1.0
+  mindelay = 10
+  maxdelay = 100
+  delaystep = 45
+  minqueue = 70
+  maxqueue = 100
+  queuestep = 5
+  protocol = c("reno", "trickles")
+  expbw <- c()
+  expdel <- c()
+  expq <- c()
+  expprot <- c()
+  expperf <- c()
+  expdrops <- c()
+  for (bw in seq(minbandwidth, maxbandwidth, by=bandwidthstep)) {
+    for (del in seq(mindelay, maxdelay, by=delaystep)) {
+      for (q in seq(minqueue, maxqueue, by=queuestep)) {
+        for (prot in protocol) {
+          tracename <- paste0(prot,".", toString(bw),".",toString(del), ".", toString(q),".tr")
+          args <- paste0("--run \"scratch/", expfilename," --bandwidth=", toString(bw),"Mbps --delay=", toString(del),"ms --queue=", toString(q)," --protocol=", prot, " --duration=20 --trace=",tracename,"\"")
+          res <- system2("./waf", args, stdout=TRUE)
+          expbw <- c(expbw, bw)
+          expdel <- c(expdel, del)
+          expq <- c(expq, q)
+          expprot <- c(expprot, prot)
+          if (is.null(attr(res, "status"))) {
+            expperf <- c(expperf, as.numeric(unlist(strsplit(res[5], " ", fixed=TRUE))[4]))
+          } else {
+            expperf <- c(expperf, NA)
+          }
+        }
+      }
+    }
+  }
+  resdf <- data.frame(expbw, expdel, expq, expprot, expperf)
+  names(resdf) <- c("bandwidth", "delay", "queue", "protocol", "performance")
+  resdf
+}
+
+expdata <- traceExp(expfilename)
+```
+
+Total of ```r nrow(expdata)``` experiments are made.
+
+# Performance visualisations
+
+```{r}
+plotres <- function(expres) {
+  mf_labeller <- function(var, value) {
+    value <- as.character(value)
+    if (var=="delay") {
+      value <- paste(value, "ms")
+    }
+    if (var=="bandwidth") {
+      value <- paste(value, "Mb")
+    }
+    return(value)
+  }
+  
+  tplot <- ggplot(expres, aes(x=queue, y=performance/1000000, group=protocol))+
+    geom_point(aes(shape=protocol, colour=protocol), size=2)
+  tplot <- tplot + scale_y_continuous(limits=c(0,8),breaks=seq(0,8,1))
+  tplot <- tplot + ylab("Performance, MB")+xlab("Queue size, packets")
+  tplot <- tplot + facet_grid(delay~bandwidth, labeller=mf_labeller)
+  tplot <- tplot+theme_bw()+theme(legend.title=element_blank(), legend.text=element_text(face="bold"),legend.key = element_blank())
+  tplot <- tplot+scale_colour_discrete(labels=c("TCP Reno", "Trickles"))+
+    scale_shape_discrete(labels=c("TCP Reno", "Trickles"))+
+    theme(legend.position="bottom")
+  tplot
+}
+
+pdf("perfmetrics.pdf")
+plotres(expdata)
+dev.off()
+plotres(expdata)
+```
+
+# Appendix A. Source code of the experiment
+
+```{r echo=FALSE}
+setwd("scratch/")
+cat(readChar(paste0(expfilename,".cc"), 1e4))
+setwd("..")
+```

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014 P.G. Demidov Yaroslavl State University
+ * Copyright (c) 2013 P.G. Demidov Yaroslavl State University
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -15,7 +15,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- * Author: Dmitry Chalyy <chaly@uniyar.ac.ru>
+ * Author: Dmitry Ju. Chalyy (chaly@uniyar.ac.ru)
  */
 
 #ifndef TRICKLES_SINK_H
@@ -59,6 +59,9 @@ public:
      * Функция устанавливает параметры приложения
      */
     void Setup (Ptr<Socket> socket, Address address, uint32_t packetSize, DataRate dataRate);
+    
+    uint32_t GetTotalRx();
+    uint32_t GetTotalRq();
     
 private:
     /**
