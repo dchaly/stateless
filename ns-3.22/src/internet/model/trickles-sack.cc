@@ -72,8 +72,8 @@ namespace ns3 {
         return(m_blocks.size());
     }
     
-    uint32_t TricklesSack::firstLoss() const {
-        if (numBlocks()==0) return(0);
+    SequenceNumber32 TricklesSack::firstLoss() const {
+        if (numBlocks()==0) return(SequenceNumber32(0));
         return(m_blocks.begin()->second);
     }
     

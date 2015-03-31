@@ -107,9 +107,10 @@ std::clog << "\n";
     
     void TricklesShieh::NewRequest() {
         // NS_LOG_FUNCTION (this);
-        if (m_RcvdRequests.size()==0) {
+        m_retries = 0;
+        if (m_RcvdRequests.numBlocks()==0) {
             m_tcpBase = SequenceNumber32(0);
-            uint32_t i = m_tcpBase;
+            uint32_t i = m_tcpBase.GetValue();
             while (m_delayed.size()<m_cwnd) {
                 TricklesHeader trh;
                 trh.SetPacketType(REQUEST);
@@ -118,7 +119,7 @@ std::clog << "\n";
                 trh.SetRecovery(NO_RECOVERY);
                 trh.SetTSVal(GetCurTSVal());
                 trh.SetTSEcr(SequenceNumber32(0));
-                trh.SetRTT(m_rtt->GetMinRto());
+                trh.SetRTT(GetMinRto());
                 trh.SetFirstLoss(SequenceNumber32(0));
                 TricklesShiehHeader tsh;
                 tsh.SetTcpBase(m_tcpBase);
@@ -140,7 +141,7 @@ std::clog << "\n";
         
 //        LOG_TRICKLES_HEADER(th); std::clog << "\n";
 //        MY_LOG_TRICKLES_PACKET(packet);
-        m_rtt->ResetMultiplier();
+        ResetMultiplier();
 
         if (packet->RemoveHeader(tsh)) {
             TricklesSocketBase::ProcessTricklesPacket(packet, th);
@@ -182,7 +183,7 @@ std::clog << "\n";
                 TrySendDelayed(true);
             }
         } else {
-            m_rtt->ResetMultiplier();
+            ResetMultiplier();
             packet->AddHeader(trh);
             packet->AddHeader(th);
             DelayPacket(packet);
@@ -359,8 +360,8 @@ std::clog << "\n";
         NS_ASSERT(packet->PeekHeader(tsh));
         packet->AddHeader(trh);
         NS_ASSERT(packet->PeekHeader(trh));
-        if (!m_delayed.find(trh->GetTrickleNumber())) {
-            m_delayed[trh->GetTrickleNumber()]=packet;
+        if (m_delayed.find(trh.GetTrickleNumber()) != m_delayed.end()) {
+            m_delayed[trh.GetTrickleNumber()]=packet;
         }
     }
     
@@ -381,7 +382,7 @@ std::clog << "\n";
                 it = m_delayed.erase(it);
                 p->AddHeader(th);
                 m_retxEvent.Cancel();
-                m_retxEvent = Simulator::Schedule(m_rtt->RetransmitTimeout(), &TricklesShieh::ReTxTimeout, this);
+                m_retxEvent = Simulator::Schedule(GetRto(), &TricklesShieh::ReTxTimeout, this);
                 TricklesSocketBase::Send(p, 0);
             } else break;
         }
@@ -389,8 +390,8 @@ std::clog << "\n";
     
     void TricklesShieh::ReTxTimeout() {
         NS_LOG_FUNCTION(this);
-        if ((m_retxEvent.IsExpired()) && (m_RcvdRequests.size()>1)) {
-            m_rtt->IncreaseMultiplier();
+        if ((m_retxEvent.IsExpired()) && (m_RcvdRequests.numBlocks()>1)) {
+            m_retries++;
             TricklesHeader trh;
             trh.SetPacketType(REQUEST);
             SackConstIterator i = m_RcvdRequests.firstBlock();
@@ -410,7 +411,7 @@ std::clog << "\n";
             p->AddHeader(tsh);
             p->AddHeader(trh);
             m_retxEvent.Cancel();
-            m_retxEvent = Simulator::Schedule(m_rtt->RetransmitTimeout(), &TricklesShieh::ReTxTimeout, this);
+            m_retxEvent = Simulator::Schedule(GetRto(), &TricklesShieh::ReTxTimeout, this);
             TricklesSocketBase::Send(p, 0);
         }
     }

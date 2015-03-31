@@ -81,6 +81,7 @@ namespace ns3 {
     m_reqDataSize(0),
     m_segSize(0),
     m_tsecr (SequenceNumber32(0)),
+    m_retries(0),
     m_shutdownSend(false),
     m_shutdownRecv(false)
     {
@@ -103,6 +104,7 @@ namespace ns3 {
     m_tsstart(sock.m_tsstart),
     m_tsgranularity(sock.m_tsgranularity),
     m_tsecr(sock.m_tsecr),
+    m_retries(sock.m_retries),
     m_errno(sock.m_errno),
     m_shutdownSend(sock.m_shutdownSend),
     m_shutdownRecv(sock.m_shutdownRecv) {
@@ -934,5 +936,10 @@ namespace ns3 {
     void TricklesSocketBase::CancelAllTimers() {
         
     }
+    
+    Time TricklesSocketBase::GetRto() const {
+        return(Max (m_rtt->GetEstimate () + m_rtt->GetVariation ()*4, Time::FromDouble (1,  Time::S)));
+    }
+
     
 } // namespace ns3

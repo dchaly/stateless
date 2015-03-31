@@ -201,6 +201,7 @@ namespace ns3 {
         virtual void BindToNetDevice (Ptr<NetDevice> netdevice);
 /*        virtual Ptr<TricklesSocketBase> Fork (void) = 0;
         void CompleteFork (Ptr<Packet> p, TricklesHeader th, const Address& fromAddress, const Address& toAddress); */
+        Time GetMinRto() const { return Seconds(0.2); }
     protected:
         /**
          * \brief Задание размера буфера, в котором хранятся пришедшие от сервера данные
@@ -249,7 +250,10 @@ namespace ns3 {
         void ForwardUp6 (Ptr<Packet> p, Ipv6Header header, uint16_t port, Ptr<Ipv6Interface> incomingInterface);
         virtual void DoForwardUp(Ptr<Packet> packet, Address fromAddress, Address toAddress, uint16_t port);
     protected:
-        
+        void IncreaseMultiplier() { m_retries++; }
+        void ResetMultiplier() { m_retries = 0; }
+        Time GetRto() const;
+
         friend class TricklesSocketFactory;
         void Destroy (void);
         void Destroy6 (void);
@@ -330,12 +334,10 @@ namespace ns3 {
          * \brief Последняя метка, видимая от противоположной стороны
          */
         SequenceNumber32 m_tsecr;
-        
         /**
-         * \brief Начальный размер окна cwnd
-         *
-         * \todo Сделать функцию для его задания, пока по умолчанию задается как 3*m_segSize в ns3::TricklesSocketBase::SetSegSize
+         * \brief Количество повторных передач подряд
          */
+        uint16_t m_retries;
         
         enum SocketErrno m_errno;
         bool m_shutdownSend;
@@ -344,6 +346,7 @@ namespace ns3 {
         // Socket attributes
         Callback<void, Ipv4Address,uint8_t,uint8_t,uint8_t,uint32_t> m_icmpCallback;
         Callback<void, Ipv6Address,uint8_t,uint8_t,uint8_t,uint32_t> m_icmpCallback6;
+        
     };
     
 } // namespace ns3
