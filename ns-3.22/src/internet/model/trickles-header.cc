@@ -233,7 +233,7 @@ namespace ns3 {
                 break;
         }
         os << " tsval=" << m_tsval << " tsecr=" << m_tsecr;
-        os << " RTT=" << m_rtt.GetMilliSeconds();
+        os << " RTT=" << m_rtt.GetMilliSeconds() << " ";
     }
 
 } // namespace ns3

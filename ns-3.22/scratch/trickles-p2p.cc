@@ -34,7 +34,7 @@ int main(int argc, char *argv[])
     
     std::cout << "N0 (Server) --- "<< bandwidth0 << ", " << delay <<" ms --- N1 (Client)" << std::endl;
     std::cout << duration << " seconds" << std::endl;
-    std::cout << "Protocol" << protocol << std::endl;
+    std::cout << "Protocol: " << protocol << std::endl;
     std::cout << "Output file: " << tracename << std::endl;
     
     /* Experiment configuration */

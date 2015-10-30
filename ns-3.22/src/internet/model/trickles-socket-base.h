@@ -250,6 +250,7 @@ namespace ns3 {
         void ForwardUp6 (Ptr<Packet> p, Ipv6Header header, uint16_t port, Ptr<Ipv6Interface> incomingInterface);
         virtual void DoForwardUp(Ptr<Packet> packet, Address fromAddress, Address toAddress, uint16_t port);
     protected:
+        virtual void PrintState();
         void IncreaseMultiplier() { m_retries++; }
         void ResetMultiplier() { m_retries = 0; }
         Time GetRto() const;
@@ -312,7 +313,7 @@ namespace ns3 {
         /**
          * \brief Очередь пакетов, содержащих запросы данных
          *
-         * В этой очереди находятся пакеты, пришедшие от клиентской стороны и содержащие запросы на получение данные от сервера.
+         * В этой очереди находятся пакеты, пришедшие от клиентской стороны и содержащие запросы на получение данных от сервера.
          */
         std::list<Ptr<Packet> > m_rqQueue;
         /**

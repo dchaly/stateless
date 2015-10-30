@@ -515,8 +515,8 @@ namespace ns3 {
                 }
                 localIpv4 = route->GetSource();
             }
-            //LOG_TRICKLES_HEADER(th);
             NS_LOG_DEBUG("Sending from " << localIpv4 << ":" << m_endPoint->GetLocalPort() << " to " << peerIpv4 << ":" << peerPort);
+//            LOG_TRICKLES_SHIEH_PACKET(p);
             m_trickles->Send (p, localIpv4,
                               peerIpv4, m_endPoint->GetLocalPort(), peerPort, m_boundnetdevice);
         }
@@ -939,6 +939,16 @@ namespace ns3 {
     
     Time TricklesSocketBase::GetRto() const {
         return(Max (m_rtt->GetEstimate () + m_rtt->GetVariation ()*4, Time::FromDouble (1,  Time::S)));
+    }
+    
+    void TricklesSocketBase::PrintState() {
+        std::clog << "TricklesSocketBase (" << Simulator::Now ().GetSeconds () << ") [node " << m_node->GetId () << "] ";
+        std::clog << "Segsize " << m_segSize << "; m_tsstart: " << m_tsstart.GetSeconds() << "; m_tsgranularity: " << m_tsgranularity.GetSeconds() << "; ";
+        std::clog << "TSEcr: " << m_tsecr << "; ";
+        std::clog << "Retransmits: " << m_retries << "; ";
+        std::clog << "Requested " << m_reqDataSize << "; RcvdRequests: ";
+        m_RcvdRequests.Print(std::clog);
+        std::clog << "\n";
     }
 
     

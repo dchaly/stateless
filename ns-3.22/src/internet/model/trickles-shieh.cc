@@ -106,7 +106,7 @@ std::clog << "\n";
     }
     
     void TricklesShieh::NewRequest() {
-        // NS_LOG_FUNCTION (this);
+        //NS_LOG_FUNCTION (this);
         m_retries = 0;
         if (m_RcvdRequests.numBlocks()==0) {
             m_tcpBase = SequenceNumber32(0);
@@ -144,11 +144,21 @@ std::clog << "\n";
         ResetMultiplier();
 
         if (packet->RemoveHeader(tsh)) {
-            TricklesSocketBase::ProcessTricklesPacket(packet, th);
-            //std::clog << "Shieh processing: "; LOG_TRICKLES_HEADER(th); std::clog << "\n";
-
-            if (th.GetPacketType()==CONTINUATION) ProcessShiehRequest(packet, th, tsh);
-            else ProcessShiehContinuation(packet, th, tsh);
+            std::clog << "\nIncoming: ";
+            LOG_TRICKLES_HEADER(th);
+            LOG_TRICKLES_SHIEH_HEADER(tsh);
+            std::clog << "\n";
+            if (tsh.GetTcpBase()<= th.GetTrickleNumber()) {
+                PrintState();
+                TricklesSocketBase::ProcessTricklesPacket(packet, th);
+                //std::clog << "Shieh processing: "; LOG_TRICKLES_HEADER(th); std::clog << "\n";
+                
+                if (th.GetPacketType()==CONTINUATION) ProcessShiehRequest(packet, th, tsh);
+                else ProcessShiehContinuation(packet, th, tsh);
+                PrintState();
+            } else {
+                //std::clog << "Previous epoch packet";
+            }
             //MY_LOG_TRICKLES_PACKET(packet);
         }
     }
@@ -159,11 +169,11 @@ std::clog << "\n";
         NS_LOG_FUNCTION (this);
         
         // Нормальная отправка пакета
-        if (th.IsRecovery() == NO_RECOVERY) {
-            m_tcpBase = trh.GetTcpBase();
-            m_cwnd = trh.GetStartCwnd();
-            m_ssthresh = trh.GetSsthresh();
-        }
+//        if (th.IsRecovery() == NO_RECOVERY) {
+//            m_tcpBase = trh.GetTcpBase();
+//            m_cwnd = trh.GetStartCwnd();
+//            m_ssthresh = trh.GetSsthresh();
+//        }
         th.SetRequestSize(m_segSize);
         if (m_RcvdRequests.numBlocks()>1) {
             // Срабатывание повторной передачи
@@ -179,10 +189,20 @@ std::clog << "\n";
                 t += i->second - i->first;
                 i++;
             }
-            if (t==ShiehDupTrickles) {
+            if (t>=ShiehDupTrickles) {
                 TrySendDelayed(true);
             }
         } else {
+            if ((th.IsRecovery() != NO_RECOVERY) && (m_RcvdRequests.numBlocks()<2)) {
+                m_tcpBase = th.GetTrickleNumber();
+                m_cwnd = trh.GetStartCwnd();
+                m_ssthresh = trh.GetSsthresh();
+            }
+            if (trh.GetTcpBase() < m_tcpBase) {
+                trh.SetTcpBase(m_tcpBase);
+                trh.SetStartCwnd(m_cwnd);
+                trh.SetSsthresh(m_ssthresh);
+            }
             ResetMultiplier();
             packet->AddHeader(trh);
             packet->AddHeader(th);
@@ -333,7 +353,7 @@ std::clog << "\n";
     uint16_t TricklesShieh::tcpCwnd(SequenceNumber32 tcpBase, uint16_t cwnd, uint16_t ssthresh, SequenceNumber32 k) const {
         
         SequenceNumber32 A = SequenceNumber32(tcpBase.GetValue()-cwnd+ssthresh);
-        //NS_LOG_FUNCTION (this << "tcpBase=" << tcpBase << " startCwnd=" << cwnd << " ssthresh=" << ssthresh << " k=" << k << " A=" << A);
+        NS_LOG_FUNCTION (this << "tcpBase=" << tcpBase << " startCwnd=" << cwnd << " ssthresh=" << ssthresh << " k=" << k << " A=" << A);
         int16_t result = 0;
         if (k<A) {
             result = cwnd+(k-tcpBase);
@@ -352,7 +372,7 @@ std::clog << "\n";
     }
     
     void TricklesShieh::DelayPacket(Ptr<Packet> packet) {
-        NS_LOG_FUNCTION (this);
+        //NS_LOG_FUNCTION (this);
         TricklesHeader trh;
         NS_ASSERT(packet->PeekHeader(trh));
         TricklesShiehHeader tsh;
@@ -360,12 +380,13 @@ std::clog << "\n";
         NS_ASSERT(packet->PeekHeader(tsh));
         packet->AddHeader(trh);
         NS_ASSERT(packet->PeekHeader(trh));
-        if (m_delayed.find(trh.GetTrickleNumber()) != m_delayed.end()) {
+        if (m_delayed.find(trh.GetTrickleNumber()) == m_delayed.end()) {
             m_delayed[trh.GetTrickleNumber()]=packet;
         }
     }
     
     void TricklesShieh::TrySendDelayed(bool fastrx) {
+        //NS_LOG_FUNCTION (this);
         std::map<SequenceNumber32, Ptr<Packet> >::iterator it = m_delayed.begin();
         uint32_t newReqSize = 0;
         // In-order packet transmission
@@ -415,5 +436,11 @@ std::clog << "\n";
             TricklesSocketBase::Send(p, 0);
         }
     }
+    
+    /*void TricklesShieh::PrintState() {
+        // TricklesSocketBase::PrintState();
+        std::clog << "TCPBase: " << m_tcpBase << "; StartCwnd: " << m_cwnd << "; StartSSthresh: " << m_ssthresh << "; Delayed size: " << m_delayed.size();
+        std::clog << "\n";
+    }*/
 
 } // namespace ns3
