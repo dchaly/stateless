@@ -15,5 +15,4 @@ It is important to install the source tree to ns-3.22. Use the following steps:
 3. git init
 4. git remote add origin https://github.com/dchaly/stateless.git
 5. git fetch
-6. git checkout -t origin/master
-
+6. git reset --hard origin/master
